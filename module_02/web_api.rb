@@ -48,8 +48,9 @@ helpers do
       return 'json' if json_or_default?(mt)
       return 'xml' if xml?(mt)
     end
-  
-    halt 406, 'Not Acceptable'
+    
+    content_type 'text/plain'
+    halt 406, 'Not Acceptable. Accepts only application/json, application/xml'
   end
 
   def type
@@ -66,6 +67,20 @@ helpers do
     end
     
   end
+
+  def check_bad_request
+    begin
+      JSON.parse(request.body.read)
+      rescue JSON::ParserError => e
+        halt 400, send_data(json: -> { { message: e.to_s } },
+                            xml: -> { { message: e.to_s } })
+    end
+  end
+
+  def check_media_type_request
+    halt 415 unless request.env['CONTENT_TYPE'] == 'application/json'
+  end
+  
 end
 
 
@@ -92,7 +107,7 @@ end
 
 get '/users/:first_name' do |first_name|
   user = users[first_name.to_sym]
-  return status 404 unless user
+  halt 404 unless user
 
   send_data(
     json: -> { user.merge(id: first_name) },
@@ -106,7 +121,14 @@ options '/users/:first_name' do
 end
 
 post '/users' do
-  user = JSON.parse(request.body.read)
+  check_media_type_request
+  check_bad_request
+
+  if users[user['first_name'].downcase.to_sym]
+    message = { message: "User #{user['first_name']} already exist in the DB." }
+    halt 409, send_data(json: -> { message },
+                        xml: -> { message })
+  end
   users[user['first_name'].downcase.to_sym] = user
 
   url = "http://localhost:4567/users/user/#{user[:first_name]}"
@@ -116,6 +138,9 @@ post '/users' do
 end
 
 put '/users/:first_name' do |first_name|
+  check_media_type_request
+  check_bad_request
+
   user = JSON.parse(request.body.read)
   existing = users[first_name.to_sym]
   users[first_name.to_sym] = user
@@ -124,9 +149,12 @@ put '/users/:first_name' do |first_name|
 end
 
 patch '/users/:first_name' do |first_name|
+  check_media_type_request
+  check_bad_request
+
   user = users[first_name.to_sym]
 
-  return status 404 unless user
+  halt 404 unless user
 
   client_data = JSON.parse(request.body.read)
   media_type = accepted_media_type
@@ -145,4 +173,10 @@ delete '/users/:first_name' do |first_name|
   return 404 unless users[first_name.to_sym]
   users.delete(first_name.to_sym)
   status 204
+end
+
+[:put, :delete, :patch].each do |method|
+  send(method, '/users') do
+    halt 405, 'Method Not Allowed. Use GET, HEAD, or OPTIONS'
+  end
 end

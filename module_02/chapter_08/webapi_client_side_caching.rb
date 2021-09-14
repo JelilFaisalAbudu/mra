@@ -1,7 +1,7 @@
 # webapi_caching.rb
 
 # => Client Caching <= Allowing client to cache the response
-# Include Cache-Control header with the max-age derivative and the ETag  header.
+# Include Cache-Control header with the max-age directive and the ETag  header.
 # Sinatra has helper methods for each scenarios. You just pass the value to the appropriate method.
 
 require 'sinatra'
@@ -34,7 +34,7 @@ users = {
 before do
   content_type 'application/json'
 
-  # Adding the Cache-Control header with the max-age derivatives.
+  # Adding the Cache-Control header with the max-age directive.
   cache_control max_age: 60
 end
 
